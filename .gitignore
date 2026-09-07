@@ -35,3 +35,8 @@ web/node_modules/
 web/dist/
 web/.env
 web/node_modules/.tmp/
+
+# Netlify CLI local site-link state (company-site/) — just a siteId, but
+# it's per-machine tooling state, not project source, same category as
+# .firebase/ above.
+company-site/.netlify/
