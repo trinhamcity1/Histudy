@@ -1616,9 +1616,22 @@ each a real commit.
   that makes that work. Real Apple root certs committed (one fetched cert turned out
   already expired, caught via `openssl x509 -noout -dates` before committing it).
   `verifyAndApplyPurchase` (fast path) + `appStoreServerNotifications` webhook
-  (durable backstop) both exist; `REFUND`/`REVOKE` reversal is deliberately NOT
-  implemented — reversing a grant out of a pooled, already-possibly-spent balance
-  isn't a small addition, flagged in a comment rather than shipped half-correct.
+  (durable backstop) both exist. `REFUND`/`REVOKE` reversal — originally flagged as
+  a deliberate, documented gap ("not a small addition") — was built in a later pass
+  (`reverseGrantForAppleTransaction`): claws back whatever's left of a top-up or
+  subscription grant, capped at the current balance so it never goes negative
+  (credit already spent is accepted loss, per the phase spec's own "Billing
+  mechanics"), and drops the tier only when the reversal is for the subscription
+  lineage the wallet is currently on. Building it surfaced a real, separate bug in
+  the original Slice 3 code: `applySubscriptionGrant`'s ledger rows were keyed by
+  the subscription's stable `originalTransactionId` (shared by every renewal in a
+  lineage) while the redelivery-dedupe check queried by that specific renewal's own
+  `transactionId` — the two never matched past the very first renewal, so a
+  redelivered `DID_RENEW` notification (Apple's own documented retry behavior)
+  could double-credit the same renewal. Fixed by keying the ledger consistently by
+  the specific transaction id everywhere (matching how top-ups already worked),
+  keeping the stable lineage id only on the wallet's own field where it's actually
+  needed. 128/128 unit tests (4 new), 90/90 rules tests, after the fix.
 - **Slice 4**: tier-aware AI tutor — no daily cap, a per-tier dollar cost cap instead,
   auto-downgrade from Sonnet to Haiku at 70% of the cap spent, prompt caching (real
   cache-write/cache-read pricing, with the honest caveat that Haiku's 4096-token cache

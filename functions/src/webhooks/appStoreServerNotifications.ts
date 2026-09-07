@@ -2,7 +2,13 @@ import { onRequest } from "firebase-functions/v2/https";
 import { FieldValue } from "firebase-admin/firestore";
 import { NotificationTypeV2 } from "@apple/app-store-server-library";
 import { actionForProductId, getSignedDataVerifier } from "../lib/appleIap";
-import { applySubscriptionGrant, hasAppliedAppleTransaction, uidForAppAccountToken, walletRef } from "../lib/credits";
+import {
+  applySubscriptionGrant,
+  hasAppliedAppleTransaction,
+  reverseGrantForAppleTransaction,
+  uidForAppAccountToken,
+  walletRef,
+} from "../lib/credits";
 
 /**
  * App Store Server Notifications V2 — the durable backstop for crediting a
@@ -57,10 +63,7 @@ export const appStoreServerNotifications = onRequest(async (req, res) => {
   }
 
   const action = actionForProductId(transaction.productId);
-  // Consumable top-ups are handled entirely by verifyAndApplyPurchase's fast
-  // path — a consumable never renews, so there is nothing this webhook
-  // needs to do for one beyond what that path already applied.
-  if (!action || action.kind !== "subscription") {
+  if (!action) {
     res.status(200).send("OK");
     return;
   }
@@ -68,14 +71,19 @@ export const appStoreServerNotifications = onRequest(async (req, res) => {
   switch (notification.notificationType) {
     case NotificationTypeV2.SUBSCRIBED:
     case NotificationTypeV2.DID_RENEW: {
+      // Consumable top-ups are handled entirely by verifyAndApplyPurchase's
+      // fast path — a consumable never renews, so there is nothing to do
+      // here for one.
+      if (action.kind !== "subscription") break;
       const alreadyApplied = await hasAppliedAppleTransaction(uid, transaction.transactionId);
       if (!alreadyApplied && transaction.originalTransactionId) {
-        await applySubscriptionGrant(uid, action.tier, transaction.originalTransactionId);
+        await applySubscriptionGrant(uid, action.tier, transaction.transactionId, transaction.originalTransactionId);
       }
       break;
     }
     case NotificationTypeV2.EXPIRED:
     case NotificationTypeV2.DID_FAIL_TO_RENEW: {
+      if (action.kind !== "subscription") break;
       // Lapsed subscription: drop to Siltstone going forward. Unspent
       // credit is untouched — it never expires regardless of tier, per
       // phase-07 §4's "Billing mechanics".
@@ -84,13 +92,16 @@ export const appStoreServerNotifications = onRequest(async (req, res) => {
     }
     case NotificationTypeV2.REFUND:
     case NotificationTypeV2.REVOKE:
-      // NOT IMPLEMENTED: reversing a refunded grant correctly requires
-      // knowing whether *that specific grant's* credit has already been
-      // spent out of a pooled, fungible balance — not a small addition.
-      // Per phase-07 §"Billing mechanics", a refund after the credit is
-      // already spent is accepted loss, never clawed into a negative
-      // balance; an unspent-refund reversal is a real gap, flagged here
-      // rather than shipped half-correct.
+      // Applies to both a top-up and a subscription grant — reverses
+      // whatever's left of that specific transaction's credit, capped at
+      // the current balance so it never goes negative, and drops the tier
+      // only if this is the subscription lineage the wallet is currently
+      // on. See reverseGrantForAppleTransaction's own doc comment.
+      await reverseGrantForAppleTransaction(
+        uid,
+        transaction.transactionId,
+        action.kind === "subscription" ? transaction.originalTransactionId ?? null : null
+      );
       break;
     default:
       break;

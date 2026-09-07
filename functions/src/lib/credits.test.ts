@@ -1,4 +1,4 @@
-import { canAffordLesson, capRefundToCycle, computeLikeRefund, computeTopUpCreditCents } from "./credits";
+import { canAffordLesson, capRefundToCycle, computeGrantReversal, computeLikeRefund, computeTopUpCreditCents } from "./credits";
 import { TIERS } from "./tiers";
 
 describe("computeTopUpCreditCents", () => {
@@ -96,5 +96,20 @@ describe("capRefundToCycle", () => {
   });
   test("no room left earns nothing further, even from a fresh crossing", () => {
     expect(capRefundToCycle(200, 2000, 2000)).toBe(0);
+  });
+});
+
+describe("computeGrantReversal", () => {
+  test("unspent grant reverses in full", () => {
+    expect(computeGrantReversal(2200, 2200)).toBe(2200);
+  });
+  test("partially spent grant reverses only what's left in the balance", () => {
+    expect(computeGrantReversal(2200, 800)).toBe(800);
+  });
+  test("fully spent grant reverses nothing — accepted loss, never negative", () => {
+    expect(computeGrantReversal(2200, 0)).toBe(0);
+  });
+  test("a balance larger than the grant (from other credit) never reverses more than the grant itself", () => {
+    expect(computeGrantReversal(2200, 9000)).toBe(2200);
   });
 });

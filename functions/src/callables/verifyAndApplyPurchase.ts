@@ -61,7 +61,7 @@ export async function runVerifyAndApplyPurchase(
   if (transaction.type !== Type.AUTO_RENEWABLE_SUBSCRIPTION || !transaction.originalTransactionId) {
     throw new HttpsError("failed-precondition", "Expected an auto-renewable subscription transaction.");
   }
-  await applySubscriptionGrant(uid, action.tier, transaction.originalTransactionId);
+  await applySubscriptionGrant(uid, action.tier, transaction.transactionId, transaction.originalTransactionId);
   return { applied: true, tier: action.tier };
 }
 

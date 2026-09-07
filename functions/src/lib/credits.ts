@@ -263,10 +263,10 @@ async function writeLedgerRow(
   t: Transaction,
   uid: string,
   row: {
-    type: "topup" | "subscription_grant" | "lesson_debit" | "lesson_refund" | "like_refund" | "free_grant";
+    type: "topup" | "subscription_grant" | "lesson_debit" | "lesson_refund" | "like_refund" | "free_grant" | "grant_reversal";
     amountCents: number;
     relatedVideoId?: string;
-    /** Apple's `transactionId` (consumables) or `originalTransactionId` (subscriptions) — never a Stripe id; this app takes no user-facing payment through Stripe. */
+    /** Apple's own `transactionId` for this specific transaction — a renewal gets its own, distinct from the lineage's `originalTransactionId` (see `applySubscriptionGrant`'s doc comment for why that distinction matters). Never a Stripe id; this app takes no user-facing payment through Stripe. */
     relatedAppleTransactionId?: string;
     note?: string;
   }
@@ -366,8 +366,29 @@ export async function applyTopUp(uid: string, paidCents: number, appleTransactio
  * balance-triggered delay/skip design doesn't exist under Apple IAP, which
  * has no mechanism for a client to skip a scheduled renewal based on
  * server-side account state.
+ *
+ * `appleTransactionId` (this specific renewal's own id) and
+ * `appleOriginalTransactionId` (the stable id shared by every renewal in
+ * this subscription's lineage) are deliberately both required, and used for
+ * two different things: the ledger row's `relatedAppleTransactionId` is
+ * `appleTransactionId` — the same convention `applyTopUp` already uses for
+ * consumables — because that's what a caller's own dedupe check
+ * (`hasAppliedAppleTransaction`) queries by *before* calling this, keyed on
+ * `transaction.transactionId` for that exact renewal. Keying the ledger by
+ * the *original* id instead (every renewal in a lineage sharing one id)
+ * used to make that dedupe check silently no-op for the 2nd+ renewal —
+ * every redelivery of a renewal notification would look "not yet applied"
+ * and grant the credit again. `appleOriginalTransactionId` only goes on the
+ * wallet's own field, which genuinely does need the stable lineage id (it's
+ * what a later EXPIRED/DID_FAIL_TO_RENEW/REFUND/REVOKE compares against to
+ * know if it's about *this* wallet's current subscription).
  */
-export async function applySubscriptionGrant(uid: string, tierId: TierId, appleOriginalTransactionId: string): Promise<void> {
+export async function applySubscriptionGrant(
+  uid: string,
+  tierId: TierId,
+  appleTransactionId: string,
+  appleOriginalTransactionId: string
+): Promise<void> {
   const tier = tierOf(tierId);
   const now = new Date();
   const cycleEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -393,7 +414,69 @@ export async function applySubscriptionGrant(uid: string, tierId: TierId, appleO
     await writeLedgerRow(t, uid, {
       type: "subscription_grant",
       amountCents: tier.subscriptionCreditCents,
-      relatedAppleTransactionId: appleOriginalTransactionId,
+      relatedAppleTransactionId: appleTransactionId,
+    });
+  });
+}
+
+/**
+ * The dollar amount to claw back for a REFUND/REVOKE notification — capped
+ * at whatever is still in the balance. Credit already spent on a lesson is
+ * accepted loss, never clawed into a negative balance — phase-07's own
+ * documented "Billing mechanics" call this out explicitly as the rule a
+ * reversal has to follow.
+ */
+export function computeGrantReversal(grantedCents: number, currentBalanceCents: number): number {
+  return Math.max(0, Math.min(grantedCents, currentBalanceCents));
+}
+
+/**
+ * Closes the gap `appStoreServerNotifications.ts` used to leave
+ * unimplemented: reverses whatever's left of a top-up or subscription grant
+ * when Apple reports it REFUND/REVOKE'd. Idempotent against Apple's own
+ * notification redelivery — looks for a `grant_reversal` row already
+ * carrying this `appleTransactionId` and no-ops if one exists, the same
+ * dedupe shape every other Apple-transaction-triggered write in this file
+ * uses. `subscriptionOriginalTransactionId` — non-null only for a
+ * subscription action — drops the tier to Siltstone exactly when this
+ * reversal is for the subscription lineage the wallet is *currently*
+ * tracking (mirrors EXPIRED/DID_FAIL_TO_RENEW); a refund of an older,
+ * already-superseded renewal in the same lineage only reverses that one
+ * grant's dollar amount and leaves the current tier alone.
+ */
+export async function reverseGrantForAppleTransaction(
+  uid: string,
+  appleTransactionId: string,
+  subscriptionOriginalTransactionId: string | null
+): Promise<void> {
+  await db.runTransaction(async (t) => {
+    const rowsQuery = db
+      .collection("users")
+      .doc(uid)
+      .collection("creditTransactions")
+      .where("relatedAppleTransactionId", "==", appleTransactionId);
+    const [rowsSnap, wallet] = await Promise.all([t.get(rowsQuery), readWallet(uid, t)]);
+    const rows = rowsSnap.docs.map((d) => d.data() as { type: string; amountCents: number });
+    const grantRow = rows.find((r) => r.type === "topup" || r.type === "subscription_grant");
+    const alreadyReversed = rows.some((r) => r.type === "grant_reversal");
+    if (!grantRow || alreadyReversed) return;
+
+    const reversalCents = computeGrantReversal(grantRow.amountCents, wallet.creditBalanceCents);
+
+    const walletUpdate: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
+    if (reversalCents > 0) {
+      walletUpdate.creditBalanceCents = FieldValue.increment(-reversalCents);
+    }
+    if (subscriptionOriginalTransactionId && wallet.appleOriginalTransactionId === subscriptionOriginalTransactionId) {
+      walletUpdate.tier = "siltstone";
+    }
+    t.set(walletRef(uid), walletUpdate, { merge: true });
+
+    await writeLedgerRow(t, uid, {
+      type: "grant_reversal",
+      amountCents: -reversalCents,
+      relatedAppleTransactionId: appleTransactionId,
+      note: reversalCents < grantRow.amountCents ? "Already partially or fully spent — the spent portion is accepted loss, not clawed back." : undefined,
     });
   });
 }
