@@ -1,0 +1,221 @@
+/* Shui LLC — company site. Shared stylesheet, plain CSS, no build step. */
+
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,460;1,9..144,600&display=swap");
+
+:root {
+  --ink: #0f2830;
+  --current: #2e7a88;
+  --current-bright: #6fc2cd;
+  --foam: #eef4f1;
+  --stone: #8b9089;
+  --brass: #c79a5c;
+
+  --max-width: 760px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--foam);
+  color: var(--ink);
+  font-family: "Fraunces", Georgia, "Times New Roman", serif;
+  font-optical-sizing: auto;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--current);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  color: var(--ink);
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+.wrap {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ---- Header ---- */
+
+header.site-header {
+  background: var(--ink);
+  padding: 20px 0;
+}
+
+header.site-header .wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+}
+
+.brand img {
+  height: 36px;
+  width: auto;
+}
+
+nav.site-nav {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+nav.site-nav a {
+  color: var(--foam);
+  font-size: 0.95rem;
+  text-decoration: none;
+  opacity: 0.85;
+}
+
+nav.site-nav a:hover,
+nav.site-nav a[aria-current="page"] {
+  opacity: 1;
+  color: var(--current-bright);
+}
+
+/* ---- Hero (home page) ---- */
+
+.hero {
+  padding: 72px 0 56px;
+  text-align: center;
+}
+
+.hero img.logo-large {
+  max-width: 320px;
+  margin: 0 auto 32px;
+  border-radius: 12px;
+}
+
+.hero h1 {
+  font-style: italic;
+  font-variation-settings: "SOFT" 75;
+  font-weight: 460;
+  font-size: clamp(2rem, 5vw, 3rem);
+  margin: 0 0 20px;
+  letter-spacing: -0.01em;
+}
+
+.hero p.lede {
+  font-size: 1.15rem;
+  color: var(--ink);
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+/* ---- Main content ---- */
+
+main {
+  padding: 48px 0 64px;
+}
+
+main.page {
+  padding-top: 56px;
+}
+
+h1 {
+  font-style: italic;
+  font-variation-settings: "SOFT" 75;
+  font-weight: 460;
+}
+
+h2 {
+  font-size: 1.3rem;
+  margin-top: 2.5em;
+  border-top: 1px solid rgba(15, 40, 48, 0.12);
+  padding-top: 1.2em;
+}
+
+h2:first-of-type {
+  margin-top: 1.5em;
+}
+
+.meta {
+  color: var(--stone);
+  font-size: 0.92rem;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid rgba(15, 40, 48, 0.08);
+  border-radius: 14px;
+  padding: 28px 32px;
+}
+
+.card + .card {
+  margin-top: 16px;
+}
+
+.contact-email {
+  display: inline-block;
+  font-size: 1.2rem;
+  margin-top: 8px;
+}
+
+ul {
+  padding-left: 1.2em;
+}
+
+li {
+  margin-bottom: 0.4em;
+}
+
+/* ---- Footer ---- */
+
+footer.site-footer {
+  border-top: 1px solid rgba(15, 40, 48, 0.12);
+  padding: 28px 0 40px;
+}
+
+footer.site-footer .wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 0.88rem;
+  color: var(--stone);
+}
+
+footer.site-footer nav {
+  display: flex;
+  gap: 18px;
+}
+
+footer.site-footer a {
+  color: var(--stone);
+}
+
+footer.site-footer a:hover {
+  color: var(--current);
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 22px 20px;
+  }
+}
