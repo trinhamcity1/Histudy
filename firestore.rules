@@ -339,5 +339,15 @@ service cloud.firestore {
     match /apiKeys/{keyId} {
       allow read, write: if false;
     }
+
+    // ---- adminAnalytics/{date} -------------------------------------------
+    // One document per finalized UTC day, written only by the nightly
+    // aggregateDailyUsageStats scheduled Function. adminGetUsageStats (Admin
+    // SDK, admin-only) is the only reader — never a direct client read, even
+    // for an admin, since there's no user data here that a rules-level read
+    // grant would help with; the console goes through the callable instead.
+    match /adminAnalytics/{date} {
+      allow read, write: if false;
+    }
   }
 }

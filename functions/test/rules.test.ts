@@ -711,6 +711,20 @@ describe("appAccountTokens", () => {
   });
 });
 
+// ---- adminAnalytics/{date} ---------------------------------------------------
+
+describe("adminAnalytics", () => {
+  test("no client can read a day's stats, not even an admin (negative)", async () => {
+    await seedDoc("adminAnalytics/2026-09-12", { date: "2026-09-12", newSignups: 3 });
+    await assertFails(getDoc(doc(admin("a1").firestore(), "adminAnalytics/2026-09-12")));
+    await assertFails(getDoc(doc(learner("alice").firestore(), "adminAnalytics/2026-09-12")));
+  });
+
+  test("no client can write a day's stats, including admin (negative)", async () => {
+    await assertFails(setDoc(doc(admin("a1").firestore(), "adminAnalytics/2026-09-12"), { date: "2026-09-12" }));
+  });
+});
+
 // ---- catch-all --------------------------------------------------------------
 
 describe("everything else", () => {

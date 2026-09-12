@@ -30,6 +30,7 @@ export { createApiKey } from "./callables/createApiKey";
 export { revokeApiKey } from "./callables/revokeApiKey";
 export { listApiKeys } from "./callables/listApiKeys";
 export { lessonsApi } from "./api/lessonsApi";
+export { adminGetUsageStats } from "./callables/adminGetUsageStats";
 
 export { onCommentWritten } from "./triggers/onCommentWritten";
 export { onTopicWritten } from "./triggers/onTopicWritten";
@@ -37,3 +38,4 @@ export { onUserCreated } from "./triggers/onUserCreated";
 export { cleanupOrphanedUploads } from "./triggers/cleanupOrphanedUploads";
 export { flushViewCounts } from "./triggers/flushViewCounts";
 export { onVideoEngagementChanged } from "./triggers/onVideoEngagementChanged";
+export { aggregateDailyUsageStats } from "./triggers/aggregateDailyUsageStats";

@@ -268,6 +268,8 @@ async function writeLedgerRow(
     relatedVideoId?: string;
     /** Apple's own `transactionId` for this specific transaction — a renewal gets its own, distinct from the lineage's `originalTransactionId` (see `applySubscriptionGrant`'s doc comment for why that distinction matters). Never a Stripe id; this app takes no user-facing payment through Stripe. */
     relatedAppleTransactionId?: string;
+    /** Only set on a `subscription_grant` row — which tier that renewal was for, so the admin analytics console can break subscription revenue down by tier without joining back to the wallet's current (possibly since-changed) tier. */
+    tier?: TierId;
     note?: string;
   }
 ): Promise<void> {
@@ -275,6 +277,7 @@ async function writeLedgerRow(
     ...row,
     relatedVideoId: row.relatedVideoId ?? null,
     relatedAppleTransactionId: row.relatedAppleTransactionId ?? null,
+    tier: row.tier ?? null,
     note: row.note ?? null,
     createdAt: FieldValue.serverTimestamp(),
   });
@@ -415,6 +418,7 @@ export async function applySubscriptionGrant(
       type: "subscription_grant",
       amountCents: tier.subscriptionCreditCents,
       relatedAppleTransactionId: appleTransactionId,
+      tier: tierId,
     });
   });
 }
