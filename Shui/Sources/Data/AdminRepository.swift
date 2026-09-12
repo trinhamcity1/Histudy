@@ -206,6 +206,12 @@ final class InMemoryAdminRepository: AdminRepository {
                 .init(categoryId: "science-tech", count: 9),
                 .init(categoryId: "money-finance", count: 6),
             ],
+            topFeatureTaps: [
+                .init(feature: "create_lesson", count: 22),
+                .init(feature: "open_billing", count: 11),
+                .init(feature: "share_to_social", count: 6),
+            ],
+            featureTapsTotal: 39,
             quizAttemptsApprox: 40,
             aiTutorMessages: 120,
             aiTutorMessagesByModel: ["claude-haiku-4-5": 80, "claude-sonnet-5": 40],

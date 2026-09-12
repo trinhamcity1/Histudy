@@ -84,6 +84,22 @@ struct AdminAnalyticsView: View {
                     }
                 }
 
+                if !page.today.topFeatureTaps.isEmpty {
+                    Section {
+                        ForEach(page.today.topFeatureTaps) { row in
+                            HStack {
+                                Text(FeatureTap.displayName(forRawValue: row.feature)).foregroundStyle(theme.textPrimary)
+                                Spacer()
+                                Text("\(row.count)").foregroundStyle(theme.textSecondary)
+                            }
+                        }
+                    } header: {
+                        Text("Top features tapped today")
+                    } footer: {
+                        Text("\(page.today.featureTapsTotal) taps total today across a fixed set of tracked buttons.")
+                    }
+                }
+
                 if !page.history.isEmpty {
                     Section("Trend") {
                         Picker("Metric", selection: $selectedMetric) {

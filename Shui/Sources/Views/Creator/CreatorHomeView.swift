@@ -88,6 +88,7 @@ struct CreatorHomeView: View {
                     // once one exists — otherwise the flow would dead-end on
                     // a picker with nothing in it.
                     Button {
+                        AppAnalytics.logFeatureTap(.uploadVideo)
                         uploadDestination = viewModel.drafts.first ?? viewModel.published.first
                     } label: {
                         Label("Upload video", systemImage: "arrow.up.circle")

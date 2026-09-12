@@ -53,6 +53,7 @@ final class CreateLessonViewModel: ObservableObject {
     func generate() {
         let topic = trimmedTopic
         guard !topic.isEmpty else { return }
+        AppAnalytics.logFeatureTap(.createLesson)
         stage = .generating
         Task {
             do {

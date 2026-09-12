@@ -30,6 +30,7 @@ final class DeveloperApiViewModel: ObservableObject {
     func createKey() async {
         let label = newKeyLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !label.isEmpty else { return }
+        AppAnalytics.logFeatureTap(.createApiKey)
         do {
             let (_, rawKey) = try await environment.apiKeys.createKey(label: label)
             justCreatedRawKey = rawKey
@@ -86,7 +87,10 @@ struct DeveloperApiView: View {
         }
         .navigationTitle("Developer API")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await viewModel.load() }
+        .task {
+            AppAnalytics.logFeatureTap(.openDeveloperApi)
+            await viewModel.load()
+        }
         .refreshable { await viewModel.load() }
         .alert(
             "New key created",

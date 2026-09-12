@@ -145,6 +145,7 @@ struct MyLessonsView: View {
 
     private func shareTapped(_ video: Video) async {
         guard let videoId = video.id else { return }
+        AppAnalytics.logFeatureTap(.shareToSocial)
         do {
             _ = try await environment.onDemandLessons.shareToSocial(videoId: videoId)
             await viewModel.load()

@@ -13,6 +13,12 @@ struct DailyUsageStats: Codable, Identifiable, Hashable {
         var id: String { categoryId }
     }
 
+    struct FeatureTapCount: Codable, Identifiable, Hashable {
+        var feature: String
+        var count: Int
+        var id: String { feature }
+    }
+
     var date: String
     var isPartial: Bool
     var computedAt: Date
@@ -23,6 +29,9 @@ struct DailyUsageStats: Codable, Identifiable, Hashable {
     var lessonsFailed: Int
     var lessonsByTier: [String: Int]
     var topCategories: [CategoryCount]
+    /// "Which UI features do people press" — see `recordFeatureTap.ts`.
+    var topFeatureTaps: [FeatureTapCount]
+    var featureTapsTotal: Int
     var quizAttemptsApprox: Int
     var aiTutorMessages: Int
     var aiTutorMessagesByModel: [String: Int]

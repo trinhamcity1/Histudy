@@ -161,7 +161,10 @@ struct BillingView: View {
         }
         .navigationTitle("Balance & plan")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await viewModel.start() }
+        .task {
+            AppAnalytics.logFeatureTap(.openBilling)
+            await viewModel.start()
+        }
         .onDisappear { viewModel.stop() }
         .shuiShellBackground()
         .alert("Something went wrong", isPresented: Binding(get: { viewModel.errorMessage != nil }, set: { if !$0 { viewModel.errorMessage = nil } })) {
@@ -195,6 +198,7 @@ struct BillingView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Top up").font(.title3.bold()).foregroundStyle(theme.textPrimary).padding(.horizontal, 20)
                 Button {
+                    AppAnalytics.logFeatureTap(.topUp)
                     Task { await viewModel.purchase(topUpProduct) }
                 } label: {
                     HStack {
@@ -252,6 +256,7 @@ struct BillingView: View {
                     .padding(.top, 4)
             } else if let productId = info.productId, let product = viewModel.product(for: productId) {
                 Button {
+                    AppAnalytics.logFeatureTap(.subscribe)
                     Task { await viewModel.purchase(product) }
                 } label: {
                     HStack {
