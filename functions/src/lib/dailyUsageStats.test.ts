@@ -1,4 +1,4 @@
-import { dateKey, dayBoundsUtc, topCategoriesFromCounts, diffCumulative } from "./dailyUsageStats";
+import { dateKey, dayBoundsUtc, topCategoriesFromCounts, topFeatureTapsFromCounts, diffCumulative } from "./dailyUsageStats";
 
 describe("dateKey", () => {
   test("formats a UTC date as YYYY-MM-DD", () => {
@@ -27,6 +27,19 @@ describe("topCategoriesFromCounts", () => {
   });
   test("empty input yields an empty list", () => {
     expect(topCategoriesFromCounts({}, 5)).toEqual([]);
+  });
+});
+
+describe("topFeatureTapsFromCounts", () => {
+  test("sorts descending and truncates to n", () => {
+    const result = topFeatureTapsFromCounts({ create_lesson: 12, top_up: 3, open_billing: 7 }, 2);
+    expect(result).toEqual([
+      { feature: "create_lesson", count: 12 },
+      { feature: "open_billing", count: 7 },
+    ]);
+  });
+  test("empty input yields an empty list", () => {
+    expect(topFeatureTapsFromCounts({}, 5)).toEqual([]);
   });
 });
 

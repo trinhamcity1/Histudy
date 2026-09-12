@@ -349,5 +349,15 @@ service cloud.firestore {
     match /adminAnalytics/{date} {
       allow read, write: if false;
     }
+
+    // ---- featureTaps/{date} ----------------------------------------------
+    // "Which UI features do people press" — one map-of-counts doc per UTC
+    // day, written only by the recordFeatureTap callable (Admin SDK), which
+    // validates `feature` against a closed whitelist before incrementing.
+    // Same Function-only posture as adminAnalytics: it feeds that same
+    // admin-only report, never a direct client read or write.
+    match /featureTaps/{date} {
+      allow read, write: if false;
+    }
   }
 }

@@ -31,6 +31,7 @@ export { revokeApiKey } from "./callables/revokeApiKey";
 export { listApiKeys } from "./callables/listApiKeys";
 export { lessonsApi } from "./api/lessonsApi";
 export { adminGetUsageStats } from "./callables/adminGetUsageStats";
+export { recordFeatureTap } from "./callables/recordFeatureTap";
 
 export { onCommentWritten } from "./triggers/onCommentWritten";
 export { onTopicWritten } from "./triggers/onTopicWritten";

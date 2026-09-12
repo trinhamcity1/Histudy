@@ -725,6 +725,20 @@ describe("adminAnalytics", () => {
   });
 });
 
+// ---- featureTaps/{date} -------------------------------------------------------
+
+describe("featureTaps", () => {
+  test("no client can read a day's tap counts, not even an admin (negative)", async () => {
+    await seedDoc("featureTaps/2026-09-12", { date: "2026-09-12", counts: { create_lesson: 4 } });
+    await assertFails(getDoc(doc(admin("a1").firestore(), "featureTaps/2026-09-12")));
+    await assertFails(getDoc(doc(learner("alice").firestore(), "featureTaps/2026-09-12")));
+  });
+
+  test("no client can write a day's tap counts, including admin (negative)", async () => {
+    await assertFails(setDoc(doc(admin("a1").firestore(), "featureTaps/2026-09-12"), { date: "2026-09-12" }));
+  });
+});
+
 // ---- catch-all --------------------------------------------------------------
 
 describe("everything else", () => {

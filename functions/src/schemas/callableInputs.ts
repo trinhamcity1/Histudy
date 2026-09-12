@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FEATURE_TAP_KEYS } from "../lib/featureTaps";
 
 const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 const MAX_THUMBNAIL_BYTES = 5 * 1024 * 1024;
@@ -219,3 +220,10 @@ export const RevokeApiKeyInputSchema = z.object({
   keyId: z.string().min(1),
 });
 export type RevokeApiKeyInput = z.infer<typeof RevokeApiKeyInputSchema>;
+
+// ---- Phase 8: admin analytics — feature-tap tracking ---------------------
+
+export const RecordFeatureTapInputSchema = z.object({
+  feature: z.enum(FEATURE_TAP_KEYS),
+});
+export type RecordFeatureTapInput = z.infer<typeof RecordFeatureTapInputSchema>;

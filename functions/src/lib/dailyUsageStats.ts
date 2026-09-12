@@ -21,6 +21,9 @@ export interface DailyUsageStats {
   lessonsFailed: number;
   lessonsByTier: Partial<Record<TierId, number>>;
   topCategories: Array<{ categoryId: string; count: number }>;
+  /** "Which UI features do people press" — see recordFeatureTap.ts. */
+  topFeatureTaps: Array<{ feature: string; count: number }>;
+  featureTapsTotal: number;
   /** Distinct videoProgress docs touched today, not a true attempt count — see docstring below. */
   quizAttemptsApprox: number;
   aiTutorMessages: number;
@@ -57,11 +60,19 @@ export function dayBoundsUtc(key: string): { start: Date; end: Date } {
   return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000) };
 }
 
-export function topCategoriesFromCounts(counts: Record<string, number>, n: number): Array<{ categoryId: string; count: number }> {
+function topEntries(counts: Record<string, number>, n: number): Array<{ key: string; count: number }> {
   return Object.entries(counts)
-    .map(([categoryId, count]) => ({ categoryId, count }))
+    .map(([key, count]) => ({ key, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, n);
+}
+
+export function topCategoriesFromCounts(counts: Record<string, number>, n: number): Array<{ categoryId: string; count: number }> {
+  return topEntries(counts, n).map(({ key, count }) => ({ categoryId: key, count }));
+}
+
+export function topFeatureTapsFromCounts(counts: Record<string, number>, n: number): Array<{ feature: string; count: number }> {
+  return topEntries(counts, n).map(({ key, count }) => ({ feature: key, count }));
 }
 
 /**
@@ -147,6 +158,7 @@ export async function computeDailyUsageStats(params: { dateKeyValue: string; isP
     aiMessagesAssistantSnap,
     topUpAgg,
     subscriptionGrantSnap,
+    featureTapsSnap,
     cumulative,
     previousCumulative,
   ] = await Promise.all([
@@ -185,6 +197,9 @@ export async function computeDailyUsageStats(params: { dateKeyValue: string; isP
       .where("createdAt", ">=", startTs)
       .where("createdAt", "<", endTs)
       .get(),
+    // One doc read, not a query — see recordFeatureTap.ts for why a
+    // per-day map doc needs no index and nothing to drain.
+    db.collection("featureTaps").doc(dateKeyValue).get(),
     readCumulativeSnapshot(),
     readPreviousCumulative(previousKey),
   ]);
@@ -219,6 +234,9 @@ export async function computeDailyUsageStats(params: { dateKeyValue: string; isP
     if (tier) subscriptionGrantsByTier[tier] = (subscriptionGrantsByTier[tier] ?? 0) + amount;
   }
 
+  const featureTapCounts = (featureTapsSnap.data()?.counts as Record<string, number> | undefined) ?? {};
+  const featureTapsTotal = Object.values(featureTapCounts).reduce((sum, count) => sum + count, 0);
+
   return {
     date: dateKeyValue,
     isPartial,
@@ -230,6 +248,8 @@ export async function computeDailyUsageStats(params: { dateKeyValue: string; isP
     lessonsFailed,
     lessonsByTier,
     topCategories: topCategoriesFromCounts(categoryCounts, 5),
+    topFeatureTaps: topFeatureTapsFromCounts(featureTapCounts, 10),
+    featureTapsTotal,
     quizAttemptsApprox: quizAttemptsAgg.data().count,
     aiTutorMessages: aiMessagesUserAgg.data().count + aiMessagesAssistantSnap.size,
     aiTutorMessagesByModel,
