@@ -1813,3 +1813,30 @@ pattern, `Wallet.Tier`'s `==` usage in `TierInfo`, `Section { } header: { } foot
 every phase before it: `git pull`, `xcodegen generate` — no `project.yml` changes
 needed, since `Shui/Sources` is already globbed recursively and these are the only
 two new files this phase added.
+
+### Feature-tap tracking ("which buttons do people actually press")
+
+A follow-up to the shareholder's own question: is this worth building before the
+app has real traffic? Landed on yes, but cheaply — not as a per-tap event log.
+`recordFeatureTap` (a callable) increments a `feature -> count` map on one doc per
+UTC day, `featureTaps/{date}`; `computeDailyUsageStats` reads that single doc
+(no query, no index) and surfaces `topFeatureTaps`/`featureTapsTotal` alongside
+everything else. `feature` is validated against a closed whitelist
+(`functions/src/lib/featureTaps.ts`, mirrored by iOS's `FeatureTap` enum) so a typo
+or a rename can't silently split one feature's count in two. Deliberately *not*
+routed through Firebase Analytics' own BigQuery export (a paid step) — this is the
+free path into our own admin console instead; the client logs the same tap to
+Firebase Analytics too (already-existing `AppAnalytics.swift` infra from Phase 3),
+so Firebase's own dashboard still gets it for free as well.
+
+Wired into 8 real buttons, not a blanket instrumentation pass: Create lesson,
+Upload video, Share to Social, opening Developer API, creating an API key, opening
+Balance & plan, Top up, and Subscribe/switch plan — chosen because none of them
+overlaps with a signal the console already captures elsewhere (lesson
+success/failure, likes, comments, quiz attempts), unlike, say, a raw "like" tap,
+which is redundant with the like-count the console already tracks precisely.
+
+Backend verified the same way as everything else this phase: `tsc`, unit suite
+(139/139, 18 suites), rules-emulator suite (94/94, including new negative tests
+for `featureTaps`'s deny-all posture). iOS checked by hand only, same limitation
+noted above.
