@@ -44,6 +44,14 @@ enum ReportAction: String {
     case deleteContent
 }
 
+/// The `adminGetUsageStats` callable's result — `today` is always live
+/// (`isPartial: true`), `history` is whatever the nightly aggregation job has
+/// already finalized, most recent first.
+struct DailyUsageStatsPage {
+    var today: DailyUsageStats
+    var history: [DailyUsageStats]
+}
+
 /// Admin-only operations. Every method here is additionally gated server-side
 /// (`requireRole(["admin"])` or an `isAdmin()` rule) — hiding the screens is
 /// a UX decision, never the security boundary.
@@ -62,6 +70,7 @@ protocol AdminRepository {
         sortOrder: Int,
         isActive: Bool
     ) async throws -> String
+    func usageStats() async throws -> DailyUsageStatsPage
 }
 
 struct FirebaseAdminRepository: AdminRepository {
@@ -143,12 +152,77 @@ struct FirebaseAdminRepository: AdminRepository {
         }
         return id
     }
+
+    func usageStats() async throws -> DailyUsageStatsPage {
+        let result = try await functions.httpsCallable("adminGetUsageStats").call([:])
+        guard let data = result.data as? [String: Any] else {
+            throw RepositoryError.malformedResponse
+        }
+        guard JSONSerialization.isValidJSONObject(data) else {
+            throw RepositoryError.malformedResponse
+        }
+        let payload = try JSONSerialization.data(withJSONObject: data)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            if let date = Self.iso8601WithFractionalSeconds.date(from: string) { return date }
+            if let date = Self.iso8601.date(from: string) { return date }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid ISO 8601 date: \(string)")
+        }
+        let response = try decoder.decode(AdminGetUsageStatsResponse.self, from: payload)
+        return DailyUsageStatsPage(today: response.today, history: response.history)
+    }
+
+    private static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions.insert(.withFractionalSeconds)
+        return formatter
+    }()
+    private static let iso8601 = ISO8601DateFormatter()
+}
+
+private struct AdminGetUsageStatsResponse: Decodable {
+    let today: DailyUsageStats
+    let history: [DailyUsageStats]
 }
 
 final class InMemoryAdminRepository: AdminRepository {
     var reports: [ContentReport]
     var users: [UserAccount]
     var assignedRoles: [(uid: String, role: UserAccount.Role)] = []
+    var stats: DailyUsageStatsPage = DailyUsageStatsPage(
+        today: DailyUsageStats(
+            date: "2026-09-12",
+            isPartial: true,
+            computedAt: Date(),
+            newSignups: 12,
+            activeUsers: 48,
+            lessonsGenerated: 30,
+            lessonsReady: 26,
+            lessonsFailed: 1,
+            lessonsByTier: ["free": 10, "siltstone": 8, "obsidian": 7, "alabaster": 3, "pyramidion": 2],
+            topCategories: [
+                .init(categoryId: "science-tech", count: 9),
+                .init(categoryId: "money-finance", count: 6),
+            ],
+            quizAttemptsApprox: 40,
+            aiTutorMessages: 120,
+            aiTutorMessagesByModel: ["claude-haiku-4-5": 80, "claude-sonnet-5": 40],
+            topUpRevenueCents: 2500,
+            subscriptionRevenueCents: 7950,
+            subscriptionGrantsByTier: ["obsidian": 4400, "alabaster": 1725, "pyramidion": 1825],
+            cumulativeViews: 48210,
+            cumulativeLikes: 6120,
+            cumulativeComments: 980,
+            cumulativeApiRequests: 340,
+            viewsToday: 812,
+            likesToday: 94,
+            commentsToday: 21,
+            apiRequestsToday: 15
+        ),
+        history: []
+    )
 
     init(reports: [ContentReport] = [], users: [UserAccount] = []) {
         self.reports = reports
@@ -187,5 +261,9 @@ final class InMemoryAdminRepository: AdminRepository {
         isActive: Bool
     ) async throws -> String {
         categoryId ?? title.lowercased().replacingOccurrences(of: " ", with: "-")
+    }
+
+    func usageStats() async throws -> DailyUsageStatsPage {
+        stats
     }
 }

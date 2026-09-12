@@ -11,6 +11,11 @@ struct AdminHomeView: View {
         List {
             Section {
                 NavigationLink {
+                    AdminAnalyticsView(environment: environment)
+                } label: {
+                    Label("Analytics", systemImage: "chart.xyaxis.line")
+                }
+                NavigationLink {
                     ReportsQueueView(environment: environment)
                 } label: {
                     Label("Reports queue", systemImage: "flag")

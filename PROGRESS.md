@@ -45,6 +45,7 @@ note on this) — same standing next step as every phase, too: `git pull`,
 | 5 | In-app creator console: topics, uploads, quiz builder, publish controls | ✅ Done — backend verified (`tsc`, rules emulator, composite indexes declared up front); live-tested extensively on a real device across many rounds (topic editor, upload flow, quiz builder, publish gates, admin surface, role claims), each round's real bugs found and fixed. Substantial enhancement work built on top after the phase itself closed out — see that section below for the full list |
 | 6 | Browser dashboard for bulk authoring | ⏸️ Paused — scaffold done (6.1); shareholder redirected focus to Phase 7 before auth/role gating and the real screens were built |
 | 7 | Lessons on demand: GolpoAI backend, four-tier credit economy, Social tab replacing Learn, self-serve developer API | ✅ Backend and iOS both built — backend verified (`tsc`, unit + rules-emulator suites); iOS checked by hand only, needs `xcodegen generate` (see below). Not yet live-tested: no real GolpoAI/Anthropic/Apple sandbox credentials in this sandbox |
+| 8 | Admin analytics console: daily usage-stats aggregation, admin-only iOS dashboard | ✅ Backend and iOS both built — backend verified (`tsc`, unit + rules-emulator suites); iOS checked by hand only, needs `xcodegen generate` (see below) |
 
 ---
 
@@ -1719,3 +1720,96 @@ App Store Connect plus the App Store Server Notifications webhook URL, and the X
 project sync above — all three already in progress per the user's own account. Once
 those exist: real end-to-end testing on a device is the next real milestone, the same
 bar every phase before this one was held to.
+
+## Phase 8 — Admin analytics console
+
+Shareholder request, separate from the phase-07 lessons-on-demand track: extract
+what users actually do each day — signups, lesson generation, quiz attempts, AI
+tutor volume, revenue, engagement — into one admin-only dashboard, so future
+product direction is decided from real numbers instead of guesswork. No new
+prompts/phase-NN doc was written for this; it's scoped and built directly against
+the existing schema.
+
+### Backend
+
+One core function, `computeDailyUsageStats` (`functions/src/lib/dailyUsageStats.ts`),
+behind two entry points — the same "one implementation, two callers" shape phase-07
+already established for on-demand lessons:
+
+- **`aggregateDailyUsageStats`** — a nightly scheduled function (`01:00 UTC`) that
+  finalizes the prior UTC day and persists it to `adminAnalytics/{date}`
+  (`isPartial: false`) — the durable history the console's trend chart reads.
+- **`adminGetUsageStats`** — an admin-only (`requireRole(["admin"])`) callable that
+  computes the *current, still-open* day live (`isPartial: true`) and returns it
+  alongside the last 30 finalized days from `adminAnalytics`.
+
+What gets computed each day: new signups and active users (`users.createdAt` /
+`lastActiveAt` range queries — no new index needed, single-field ranges are
+automatic); on-demand lessons generated, broken down by terminal status and by
+`tierAtGeneration`; a top-5 category list; quiz attempts (approximated by distinct
+`videoProgress` docs touched that day — an exact per-attempt count isn't cheaply
+queryable, since attempts aren't logged as their own documents); AI tutor message
+volume, broken down by which model actually served each reply; top-up and
+subscription revenue in cents, the latter broken down by tier; and cumulative
+views/likes/comments/API requests, each with a same-day delta.
+
+That last one needed a design decision: `flushViewCounts` (phase-02) already
+*deletes* `viewEvents` once it drains them into `videos.viewCount` hourly, so
+"how many views happened yesterday" can't be queried from an event log that no
+longer exists for yesterday. The fix is **cumulative-counter diffing** — sum
+today's live totals (`AggregateField.sum` across `videos.viewCount/likeCount/
+commentCount` and `apiKeys.requestCount`, no filter needed, so no index either)
+and diff against *yesterday's own stored cumulative snapshot* in `adminAnalytics`.
+`diffCumulative` returns `null` (not `0`) when there's no prior snapshot to diff
+against yet — first run, or a gap in history — so the UI can render "—" honestly
+instead of a misleading zero, and clamps at `0` rather than going negative, since a
+cumulative total can legitimately drop between two snapshots (a video with likes
+gets deleted).
+
+One small additive schema fix, needed for the subscription-revenue-by-tier
+breakdown: `writeLedgerRow`'s row type (`functions/src/lib/credits.ts`) gained an
+optional `tier?: TierId` field, and `applySubscriptionGrant` now passes the tier it
+just granted — a `subscription_grant` ledger row previously had no record of which
+tier it was for.
+
+New Firestore indexes: one `COLLECTION`-scope composite on `videos`
+(`generationSource` + `createdAt`) for the on-demand-lessons-created-today query;
+two `COLLECTION_GROUP`-scope composites, on `messages` (`role` + `createdAt`) and
+`creditTransactions` (`type` + `createdAt`); and one `COLLECTION_GROUP` field
+override on `videoProgress.lastAnsweredAt`, the same pattern already used for
+`comments.uid`. `adminAnalytics/{date}` itself is deny-all in rules (`allow read,
+write: if false`) — same posture as `lessonCache`/`apiKeys`: Function-only, no
+legitimate client read even for an admin, since the console goes through the
+callable, not a direct Firestore listener.
+
+Verified the same way every backend phase since 1 has been: clean `tsc`, the full
+unit suite (18 suites / 137 tests, including new coverage for `dateKey`/
+`dayBoundsUtc`/`topCategoriesFromCounts`/`diffCumulative`), and the full rules
+suite against the real Firestore emulator (92/92, including two new negative tests
+confirming `adminAnalytics` is unreadable and unwritable by every client, admin
+included).
+
+### iOS
+
+`DailyUsageStats` (`Data/Models/DailyUsageStats.swift`) mirrors the callable's
+response shape exactly, including a `tierBreakdown` helper that orders a
+`[String: Int]` tier map by `Wallet.Tier`'s real Free→Pyramidion order instead of
+dictionary/insertion order. `AdminRepository` (already existing, phase-05) gained
+one method, `usageStats()`, decoded off `adminGetUsageStats` the same way
+`listApiKeys` already decodes its own ISO-8601 timestamps — reused, not
+reinvented. `AdminAnalyticsView` (`Views/Creator/AdminAnalyticsView.swift`) is a new
+screen wired into the existing `AdminHomeView` list (admin-only, same
+`environment.isAdmin`-gated entry point every other admin screen already uses):
+today's stat grid, lesson/revenue tier breakdowns, cumulative-vs-today community
+numbers, top categories, and a Swift Charts trend line (signups / active users /
+lessons / AI messages, switchable via a segmented picker) drawn from history plus
+today.
+
+iOS is checked by hand only, same standing limitation as every Swift phase before
+this one (no Swift toolchain in this sandbox) — cross-referenced line by line
+against already-compiling code in this same codebase (`ApiKeyRepository`'s decode
+pattern, `Wallet.Tier`'s `==` usage in `TierInfo`, `Section { } header: { } footer:
+{ }` used elsewhere) rather than written from a blank slate. Same next step as
+every phase before it: `git pull`, `xcodegen generate` — no `project.yml` changes
+needed, since `Shui/Sources` is already globbed recursively and these are the only
+two new files this phase added.
